@@ -91,24 +91,34 @@ def get_ztf_lc(filename, name, username, password,
         lineSplit = line.split(",")
         lineSplit = list(filter(None,lineSplit))
         if not lineSplit: continue
-        if len(lineSplit) > 11:
-            lineSplit = lineSplit[:11]
+        if len(lineSplit) > 13:
+            lineSplit = lineSplit[:13]
 
-        if len(lineSplit) == 10:
-            date,jdobs,filt,magpsf,sigmamagpsf,limmag,instrument,reducedby,refsys,issub = lineSplit
+        if len(lineSplit) == 12:
+            date,jdobs,filt,magpsf,sigmamagpsf,limmag,instrument,programid,reducedby,refsys,issub,isdiffpos = lineSplit
         else:
-            date,jdobs,filt,absmag,magpsf,sigmamagpsf,limmag,instrument,reducedby,refsys,issub = lineSplit
+            date,jdobs,filt,absmag,magpsf,sigmamagpsf,limmag,instrument,programid,reducedby,refsys,issub,isdiffpos = lineSplit
 
-        jd.append(float(jdobs))
-        filtname.append(filt)
+        if not instrument in ["P48+ZTF","P60+SEDM"]: continue
+
+        if not isdiffpos == "True":
+            continue
+
         if float(magpsf) < -100:
             magpsf = "99.0"
         if float(limmag) < -100:
             limmag = "99.0"
 
         if np.isclose(float(magpsf),99.0):
+            continue
+
+        jd.append(float(jdobs))
+        filtname.append(filt)
+
+        if np.isclose(float(magpsf),99.0):
             mag.append(float(limmag))
             magerr.append(np.inf)
+            continue
         else:
             mag.append(float(magpsf))
             magerr.append(float(sigmamagpsf))
@@ -124,6 +134,17 @@ def get_ztf_lc(filename, name, username, password,
             fluxs.append(flux)
             fluxerrs.append(fluxerr)
             passband.append(filtname[ii])
+
+        maxfluxes = {}
+        for filt in list(set(passband)):
+            maxfluxes[filt] = -1
+            for flux, thisfilt in zip(fluxs,passband):
+                if thisfilt == filt:
+                    if maxfluxes[filt] < flux:
+                        maxfluxes[filt] = flux*1.0
+        fluxs = [flux/maxfluxes[filt] for flux, filt in zip(fluxs,passband)]
+        fluxerrs = [fluxerr/maxfluxes[filt] for fluxerr, filt in zip(fluxerrs,passband)]
+
         return mjds, mag, magerr, fluxs, fluxerrs, passband 
 
     fid = open(filename,'w')
